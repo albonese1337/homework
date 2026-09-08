@@ -1,0 +1,31 @@
+---
+- name: Wait for SSH
+  hosts: all
+  gather_facts: false
+
+  tasks:
+    - name: Check SSH port
+      ansible.builtin.wait_for:
+        port: 22
+        host: "{{ ansible_host }}"
+        connect_timeout: 30
+        timeout: 300
+      delegate_to: localhost
+
+
+- name: Install and start Nginx
+  hosts: all
+  become: true
+
+  tasks:
+    - name: Install Nginx
+      ansible.builtin.apt:
+        name: nginx
+        state: present
+        update_cache: true
+
+    - name: Start Nginx
+      ansible.builtin.service:
+        name: nginx
+        state: started
+        enabled: true
