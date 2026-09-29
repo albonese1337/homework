@@ -1,0 +1,80 @@
+version: '3.7'
+
+services:
+  elasticsearch:
+    image: elasticsearch:7.17.9
+    container_name: elasticsearch
+    environment:
+      - xpack.security.enabled=false
+      - discovery.type=single-node
+      - cluster.name=turkmenov
+      - "ES_JAVA_OPTS=-Xms1500m -Xmx1500m"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    cap_add:
+      - IPC_LOCK
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+    ports:
+      - "127.0.0.1:9200:9200"
+
+  kibana:
+    image: kibana:7.17.9
+    container_name: kibana
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    ports:
+      - "5601:5601"
+    depends_on:
+      - elasticsearch
+
+  nginx:
+    image: nginx:1.28
+    container_name: nginx
+    ports:
+      - "8080:80"
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - nginx-logs:/var/log/nginx
+    command:
+      - /bin/sh
+      - -c
+      - |
+        rm -f /var/log/nginx/access.log
+        touch /var/log/nginx/access.log
+        exec nginx -g 'daemon off;'
+
+  logstash:
+    image: docker.elastic.co/logstash/logstash:7.17.9
+    container_name: logstash
+    profiles: [logstash]
+    volumes:
+      - ./logstash/nginx.conf:/usr/share/logstash/pipeline/nginx.conf:ro
+      - nginx-logs:/var/log/nginx:ro
+    depends_on:
+      - elasticsearch
+      - nginx
+
+  filebeat:
+    image: docker.elastic.co/beats/filebeat:7.17.9
+    container_name: filebeat
+    profiles: [filebeat]
+    command: ["--strict.perms=false"]
+    user: root
+    volumes:
+      - ./filebeat.yml:/usr/share/filebeat/filebeat.yml:ro
+      - nginx-logs:/var/log/nginx:ro
+      - filebeat-data:/usr/share/filebeat/data
+    depends_on:
+      - elasticsearch
+      - nginx
+
+volumes:
+  elasticsearch-data:
+  nginx-logs:
+  filebeat-data:
